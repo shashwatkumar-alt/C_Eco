@@ -90,7 +90,7 @@ function App() {
   const handleAnswerSelect = (opt: string) => {
     if (!activeQuiz) return;
     const qId = activeQuiz[currentIndex].id;
-    if (selectedAnswers[qId]) return; // Prevent clicking multiple times
+    if (preferences.feedbackMode === 'immediate' && selectedAnswers[qId]) return; // Prevent clicking multiple times in immediate mode
     
     setSelectedAnswers(prev => ({ ...prev, [qId]: opt }));
     
@@ -109,14 +109,48 @@ function App() {
 
   if (activeQuiz && quizFinished) {
     const correctCount = activeQuiz.filter(q => selectedAnswers[q.id] === q.correctAnswer).length;
+    const incorrectQuestions = activeQuiz.filter(q => selectedAnswers[q.id] !== q.correctAnswer);
+
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4 transition-colors">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="p-8 bg-white dark:bg-slate-800 shadow-xl rounded-2xl max-w-lg w-full text-center transition-colors">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center p-8 transition-colors overflow-y-auto">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="p-8 bg-white dark:bg-slate-800 shadow-xl rounded-2xl max-w-2xl w-full text-center transition-colors mb-8">
           <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-6">Quiz Results</h2>
           <div className="text-6xl font-black mb-4 text-primary">{Math.round((correctCount / activeQuiz.length) * 100)}%</div>
           <p className="text-slate-600 dark:text-slate-300 mb-8">{correctCount} out of {activeQuiz.length} correct</p>
           <button onClick={() => setActiveQuiz(null)} className="bg-primary text-white px-6 py-3 rounded-xl font-medium hover:bg-primary-hover transition shadow-md">Back to Dashboard</button>
         </motion.div>
+
+        {incorrectQuestions.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="max-w-2xl w-full space-y-6 pb-12">
+            <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-4">Incorrectly Answered</h3>
+            {incorrectQuestions.map((q, idx) => (
+              <div key={q.id} className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-md border border-red-100 dark:border-red-900/30 text-left">
+                <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4 flex gap-3">
+                  <span className="text-red-500 font-bold block">{idx + 1}.</span> {q.questionText}
+                </h4>
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2">
+                    <span className="font-semibold text-red-600 dark:text-red-400 mt-0.5 whitespace-nowrap">Your Answer:</span>
+                    <span className="text-slate-600 dark:text-slate-300">
+                      {selectedAnswers[q.id] ? q.options[selectedAnswers[q.id] as keyof typeof q.options] : "Not answered"}
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="font-semibold text-green-600 dark:text-green-400 mt-0.5 whitespace-nowrap">Correct Answer:</span>
+                    <span className="text-slate-600 dark:text-slate-300">
+                      {q.options[q.correctAnswer as keyof typeof q.options]}
+                    </span>
+                  </div>
+                </div>
+                {q.explanation && (
+                  <div className="mt-4 p-4 bg-blue-50 dark:bg-slate-700 text-blue-800 dark:text-blue-300 rounded-xl text-sm">
+                    {q.explanation}
+                  </div>
+                )}
+              </div>
+            ))}
+          </motion.div>
+        )}
       </div>
     );
   }
