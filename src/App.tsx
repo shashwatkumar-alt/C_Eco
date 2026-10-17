@@ -4,10 +4,14 @@ import { Play, Shuffle, Settings, Trash2, Clock, CheckCircle, XCircle, Sun, Moon
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Question } from './lib/types';
 import { cn } from './lib/utils';
-import { preloadedQuestions } from './data';
+import { preloadedQuestions as economicsQuestions } from './data';
+import { conservationGeographyQuestions as geographyQuestions } from './data-geography';
+
+type Subject = 'geography' | 'economics';
 
 function App() {
-  const { questions, setQuestions, preferences, setPreferences, clearQuestions } = useQuizStore();
+  const { setQuestions, preferences, setPreferences, clearQuestions } = useQuizStore();
+  const [selectedSubject, setSelectedSubject] = useState<Subject>('geography');
   const [activeQuiz, setActiveQuiz] = useState<Question[] | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
@@ -16,10 +20,12 @@ function App() {
 
   const [selectedWeek, setSelectedWeek] = useState<string>('All');
 
+  const currentSubjectQuestions = selectedSubject === 'geography' ? geographyQuestions : economicsQuestions;
+
   React.useEffect(() => {
     // Force loaded data over stale DB defaults to capture any code-side corrections
-    setQuestions(preloadedQuestions);
-  }, []);
+    setQuestions(currentSubjectQuestions);
+  }, [selectedSubject]);
 
   // Apply dark mode class to html element
   React.useEffect(() => {
@@ -29,6 +35,20 @@ function App() {
       document.documentElement.classList.remove('dark');
     }
   }, [preferences.theme]);
+
+  const handleSubjectChange = (subject: Subject) => {
+    setSelectedSubject(subject);
+    setSelectedWeek('All');
+  };
+
+  const availableWeeks = React.useMemo(() => {
+    const weeks = [...new Set(currentSubjectQuestions.map(q => q.weekId))];
+    return weeks.sort((a, b) => {
+      const numA = parseInt(a.replace(/\D/g, ''), 10);
+      const numB = parseInt(b.replace(/\D/g, ''), 10);
+      return numA - numB;
+    });
+  }, [currentSubjectQuestions]);
 
   // Shuffle option order for a question, remapping the correct answer key
   const shuffleOptions = (q: Question): Question => {
@@ -51,7 +71,7 @@ function App() {
   };
 
   const startQuiz = () => {
-    let qToPlay: Question[] = preloadedQuestions.map(shuffleOptions);
+    let qToPlay: Question[] = currentSubjectQuestions.map(shuffleOptions);
     if (selectedWeek !== 'All') {
       qToPlay = qToPlay.filter(q => q.weekId === selectedWeek);
     }
@@ -114,6 +134,9 @@ function App() {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center p-8 transition-colors overflow-y-auto">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="p-8 bg-white dark:bg-slate-800 shadow-xl rounded-2xl max-w-2xl w-full text-center transition-colors mb-8">
+          <p className="text-xs uppercase tracking-wider font-bold text-primary mb-2">
+            {selectedSubject === 'geography' ? 'Conservation Geography' : 'Conservation Economics'}
+          </p>
           <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-6">Quiz Results</h2>
           <div className="text-6xl font-black mb-4 text-primary">{Math.round((correctCount / activeQuiz.length) * 100)}%</div>
           <p className="text-slate-600 dark:text-slate-300 mb-8">{correctCount} out of {activeQuiz.length} correct</p>
@@ -267,7 +290,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col p-8 transition-colors">
-      <header className="max-w-4xl w-full mx-auto flex items-center justify-between mb-12">
+      <header className="max-w-4xl w-full mx-auto flex items-center justify-between mb-8">
         <h1 className="text-2xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
           <Play className="text-primary fill-primary" /> FlashMaster
         </h1>
@@ -283,68 +306,152 @@ function App() {
         </div>
       </header>
 
-      <main className="max-w-4xl w-full mx-auto grid md:grid-cols-2 gap-8">
-        <section className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
-          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-6 font-sans">Assignment Scope</h2>
-          <div className="space-y-4">
-             <label className="block">
-                <span className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2 block">Select Week to Practice</span>
-                <select 
-                  value={selectedWeek} 
-                  onChange={e => setSelectedWeek(e.target.value)}
-                  className="w-full border-2 border-slate-200 dark:border-slate-600 bg-transparent dark:bg-slate-700 rounded-xl p-3 focus:border-primary focus:ring-0 outline-none text-slate-700 dark:text-slate-200 font-medium transition-colors"
-                >
-                  <option value="All">All Weeks (Comprehensive)</option>
-                  {[...new Set(questions.map(q => q.weekId))].map(w => (
-                    <option key={w} value={w}>{w}</option>
-                  ))}
-                </select>
-             </label>
-             <div className="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-xl mt-6 border border-blue-100 dark:border-blue-800 transition-colors">
-                <p className="text-blue-800 dark:text-blue-300 font-medium text-sm">
-                  This application is specifically built for your MOOC Assignment practice. All {preloadedQuestions.length} questions from the PDF are pre-loaded!
-                </p>
-             </div>
+      <main className="max-w-4xl w-full mx-auto space-y-8">
+        {/* Course / Subject Selection */}
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 font-sans">Select Subject</h2>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Choose a course to practice</span>
           </div>
-        </section>
-
-        <section className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col transition-colors">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 font-sans">Dashboard</h2>
-            <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 text-xs font-bold px-3 py-1 rounded-full">{preloadedQuestions.length} Qs loaded</span>
-          </div>
-          
-          <div className="space-y-4 flex-1">
-             <label className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-              <span className="font-medium text-slate-700 dark:text-slate-200 flex items-center gap-3"><Shuffle size={18} className="text-primary" /> Randomize Order</span>
-              <input type="checkbox" checked={preferences.randomize} onChange={e => setPreferences({ randomize: e.target.checked })} className="w-5 h-5 accent-primary" />
-             </label>
-             <label className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-              <span className="font-medium text-slate-700 dark:text-slate-200 flex items-center gap-3"><Clock size={18} className="text-primary" /> Timer (45s limit)</span>
-              <input type="checkbox" checked={preferences.isTimerEnabled} onChange={e => setPreferences({ isTimerEnabled: e.target.checked })} className="w-5 h-5 accent-primary" />
-             </label>
-             <div className="pt-4">
-                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-3">Feedback Mode</p>
-                <div className="flex gap-2">
-                  <button onClick={() => setPreferences({ feedbackMode: 'immediate' })} className={cn("flex-1 py-2 rounded-lg font-medium border text-sm transition", preferences.feedbackMode === 'immediate' ? "bg-slate-800 dark:bg-slate-600 text-white border-slate-800 dark:border-slate-500" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600")}>Immediate</button>
-                  <button onClick={() => setPreferences({ feedbackMode: 'review' })} className={cn("flex-1 py-2 rounded-lg font-medium border text-sm transition", preferences.feedbackMode === 'review' ? "bg-slate-800 dark:bg-slate-600 text-white border-slate-800 dark:border-slate-500" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600")}>Review at End</button>
-                </div>
-             </div>
-          </div>
-
-          <div className="mt-8 flex gap-4">
-            {preloadedQuestions.length > 0 && (
-              <button onClick={clearQuestions} className="p-4 text-red-500 bg-red-50 hover:bg-red-100 rounded-xl transition"><Trash2 size={20} /></button>
-            )}
-            <button
-              onClick={startQuiz}
-              disabled={preloadedQuestions.length === 0}
-              className="flex-1 bg-primary text-white font-bold py-4 rounded-xl shadow-md hover:bg-primary-hover hover:-translate-y-1 transition disabled:opacity-50 disabled:hover:translate-y-0"
+          <div className="grid sm:grid-cols-2 gap-4">
+            {/* Conservation Geography - Primary, Hero Option */}
+            <div
+              onClick={() => handleSubjectChange('geography')}
+              className={cn(
+                "relative cursor-pointer p-6 rounded-3xl border-2 transition-all flex flex-col justify-between",
+                selectedSubject === 'geography'
+                  ? "border-primary bg-primary/[0.04] dark:bg-primary/10 shadow-md ring-2 ring-primary/20"
+                  : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800"
+              )}
             >
-              Start Practice
-            </button>
+              <div>
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-black tracking-wide bg-primary text-white uppercase">
+                    Primary Course
+                  </span>
+                  <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                    {geographyQuestions.length} Questions
+                  </span>
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+                  Conservation Geography
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Comprehensive 2026 MOOC Assignments • Weeks 0–12
+                </p>
+              </div>
+              <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs font-semibold">
+                <span className={selectedSubject === 'geography' ? "text-primary font-bold" : "text-slate-400 dark:text-slate-500"}>
+                  {selectedSubject === 'geography' ? "● Active Subject" : "Click to select"}
+                </span>
+                <span className="text-slate-400 dark:text-slate-500">13 Modules</span>
+              </div>
+            </div>
+
+            {/* Conservation Economics - Secondary Option */}
+            <div
+              onClick={() => handleSubjectChange('economics')}
+              className={cn(
+                "relative cursor-pointer p-6 rounded-3xl border-2 transition-all flex flex-col justify-between",
+                selectedSubject === 'economics'
+                  ? "border-primary bg-primary/[0.04] dark:bg-primary/10 shadow-md ring-2 ring-primary/20"
+                  : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800"
+              )}
+            >
+              <div>
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 uppercase">
+                    Secondary Course
+                  </span>
+                  <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                    {economicsQuestions.length} Questions
+                  </span>
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+                  Conservation Economics
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  2026 MOOC Assignments • Weeks 1–12
+                </p>
+              </div>
+              <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs font-semibold">
+                <span className={selectedSubject === 'economics' ? "text-primary font-bold" : "text-slate-400 dark:text-slate-500"}>
+                  {selectedSubject === 'economics' ? "● Active Subject" : "Click to select"}
+                </span>
+                <span className="text-slate-400 dark:text-slate-500">12 Modules</span>
+              </div>
+            </div>
           </div>
         </section>
+
+        <div className="grid md:grid-cols-2 gap-8">
+          <section className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
+            <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-6 font-sans">Assignment Scope</h2>
+            <div className="space-y-4">
+               <label className="block">
+                  <span className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2 block">Select Week to Practice</span>
+                  <select 
+                    value={selectedWeek} 
+                    onChange={e => setSelectedWeek(e.target.value)}
+                    className="w-full border-2 border-slate-200 dark:border-slate-600 bg-transparent dark:bg-slate-700 rounded-xl p-3 focus:border-primary focus:ring-0 outline-none text-slate-700 dark:text-slate-200 font-medium transition-colors"
+                  >
+                    <option value="All">All Weeks (Comprehensive)</option>
+                    {availableWeeks.map(w => (
+                      <option key={w} value={w}>{w}</option>
+                    ))}
+                  </select>
+               </label>
+               <div className="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-xl mt-6 border border-blue-100 dark:border-blue-800 transition-colors">
+                  <p className="text-blue-800 dark:text-blue-300 font-medium text-sm">
+                    {selectedSubject === 'geography'
+                      ? `This application is specifically built for your MOOC Assignment practice. All ${geographyQuestions.length} questions from Conservation Geography (Weeks 0–12) are loaded!`
+                      : `This application is specifically built for your MOOC Assignment practice. All ${economicsQuestions.length} questions from Conservation Economics (Weeks 1–12) are loaded!`
+                    }
+                  </p>
+               </div>
+            </div>
+          </section>
+
+          <section className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col transition-colors">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 font-sans">Dashboard</h2>
+              <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 text-xs font-bold px-3 py-1 rounded-full">
+                {currentSubjectQuestions.length} Qs loaded
+              </span>
+            </div>
+            
+            <div className="space-y-4 flex-1">
+               <label className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                <span className="font-medium text-slate-700 dark:text-slate-200 flex items-center gap-3"><Shuffle size={18} className="text-primary" /> Randomize Order</span>
+                <input type="checkbox" checked={preferences.randomize} onChange={e => setPreferences({ randomize: e.target.checked })} className="w-5 h-5 accent-primary" />
+               </label>
+               <label className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                <span className="font-medium text-slate-700 dark:text-slate-200 flex items-center gap-3"><Clock size={18} className="text-primary" /> Timer (45s limit)</span>
+                <input type="checkbox" checked={preferences.isTimerEnabled} onChange={e => setPreferences({ isTimerEnabled: e.target.checked })} className="w-5 h-5 accent-primary" />
+               </label>
+               <div className="pt-4">
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-3">Feedback Mode</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setPreferences({ feedbackMode: 'immediate' })} className={cn("flex-1 py-2 rounded-lg font-medium border text-sm transition", preferences.feedbackMode === 'immediate' ? "bg-slate-800 dark:bg-slate-600 text-white border-slate-800 dark:border-slate-500" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600")}>Immediate</button>
+                    <button onClick={() => setPreferences({ feedbackMode: 'review' })} className={cn("flex-1 py-2 rounded-lg font-medium border text-sm transition", preferences.feedbackMode === 'review' ? "bg-slate-800 dark:bg-slate-600 text-white border-slate-800 dark:border-slate-500" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600")}>Review at End</button>
+                  </div>
+               </div>
+            </div>
+
+            <div className="mt-8 flex gap-4">
+              {currentSubjectQuestions.length > 0 && (
+                <button onClick={clearQuestions} className="p-4 text-red-500 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 rounded-xl transition"><Trash2 size={20} /></button>
+              )}
+              <button
+                onClick={startQuiz}
+                disabled={currentSubjectQuestions.length === 0}
+                className="flex-1 bg-primary text-white font-bold py-4 rounded-xl shadow-md hover:bg-primary-hover hover:-translate-y-1 transition disabled:opacity-50 disabled:hover:translate-y-0"
+              >
+                Start Practice
+              </button>
+            </div>
+          </section>
+        </div>
       </main>
     </div>
   );
