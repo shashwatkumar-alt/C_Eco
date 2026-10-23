@@ -400,21 +400,22 @@ function App() {
             >
               <ChevronLeft size={16} /> Previous
             </button>
-            {currentIndex === activeQuiz.length - 1 ? (
+            <div className="flex items-center gap-2">
               <button
                 onClick={submitFinal}
-                className="flex items-center gap-2 px-5 py-2.5 sm:px-8 sm:py-3 font-bold text-xs sm:text-sm bg-primary text-white hover:bg-primary-hover rounded-xl shadow-md transition-colors active:scale-95 cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2.5 sm:px-5 sm:py-3 font-bold text-xs sm:text-sm border-2 border-primary text-primary hover:bg-primary/5 rounded-xl transition-colors active:scale-95 cursor-pointer"
               >
-                <Send size={15} /> Submit
+                <Send size={14} /> Submit
               </button>
-            ) : (
-              <button
-                onClick={() => { clearAutoAdvanceTimer(); setCurrentIndex(c => Math.min(activeQuiz.length - 1, c + 1)); }}
-                className="flex items-center gap-1.5 px-5 py-2.5 sm:px-8 sm:py-3 font-bold text-xs sm:text-sm bg-primary text-white hover:bg-primary-hover rounded-xl shadow-md transition-colors active:scale-95 cursor-pointer"
-              >
-                Next <ChevronRight size={16} />
-              </button>
-            )}
+              {currentIndex < activeQuiz.length - 1 && (
+                <button
+                  onClick={() => { clearAutoAdvanceTimer(); setCurrentIndex(c => Math.min(activeQuiz.length - 1, c + 1)); }}
+                  className="flex items-center gap-1.5 px-5 py-2.5 sm:px-8 sm:py-3 font-bold text-xs sm:text-sm bg-primary text-white hover:bg-primary-hover rounded-xl shadow-md transition-colors active:scale-95 cursor-pointer"
+                >
+                  Next <ChevronRight size={16} />
+                </button>
+              )}
+            </div>
           </div>
 
           {answeredCount < activeQuiz.length && (
