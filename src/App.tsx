@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuizStore } from './lib/store';
-import { Play, Shuffle, Settings, Trash2, Clock, CheckCircle, XCircle, Sun, Moon } from 'lucide-react';
+import { Play, Shuffle, Settings, Trash2, Clock, CheckCircle, XCircle, Sun, Moon, FastForward } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Question } from './lib/types';
 import { cn } from './lib/utils';
@@ -70,7 +70,21 @@ function App() {
     return { ...q, options: newOptions as Question['options'], correctAnswer: newCorrect };
   };
 
+  const autoAdvanceTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearAutoAdvanceTimer = () => {
+    if (autoAdvanceTimeoutRef.current) {
+      clearTimeout(autoAdvanceTimeoutRef.current);
+      autoAdvanceTimeoutRef.current = null;
+    }
+  };
+
+  React.useEffect(() => {
+    return () => clearAutoAdvanceTimer();
+  }, [currentIndex, activeQuiz, quizFinished]);
+
   const startQuiz = () => {
+    clearAutoAdvanceTimer();
     let qToPlay: Question[] = currentSubjectQuestions.map(shuffleOptions);
     if (selectedWeek !== 'All') {
       qToPlay = qToPlay.filter(q => q.weekId === selectedWeek);
@@ -90,6 +104,7 @@ function App() {
     
     // Auto-advance if timer runs out
     if (timeLeft <= 0) {
+      clearAutoAdvanceTimer();
       if (currentIndex === activeQuiz.length - 1) {
         submitQuiz();
       } else {
@@ -104,26 +119,37 @@ function App() {
   }, [activeQuiz, quizFinished, timeLeft, currentIndex, preferences.isTimerEnabled]);
 
   const submitQuiz = () => {
+    clearAutoAdvanceTimer();
     setQuizFinished(true);
   };
 
   const handleAnswerSelect = (opt: string) => {
     if (!activeQuiz) return;
     const qId = activeQuiz[currentIndex].id;
-    if (preferences.feedbackMode === 'immediate' && selectedAnswers[qId]) return; // Prevent clicking multiple times in immediate mode
+    const isAutoNext = preferences.isAutoNextEnabled ?? true;
+
+    // Prevent re-selecting in immediate mode
+    if (preferences.feedbackMode === 'immediate' && selectedAnswers[qId]) return;
+    // If auto-advance is active and answer was already clicked, avoid double trigger
+    if (isAutoNext && selectedAnswers[qId]) return;
     
     setSelectedAnswers(prev => ({ ...prev, [qId]: opt }));
     
-    // Auto-advance logic for immediate mode
-    if (preferences.feedbackMode === 'immediate') {
-      setTimeout(() => {
+    // Auto-advance logic for both immediate and review modes
+    if (isAutoNext) {
+      clearAutoAdvanceTimer();
+      // Reduced, snappy delays:
+      // In immediate mode: 650ms gives quick, satisfying feedback reveal without waiting
+      // In review mode: 250ms gives instant selection visual feedback before transitioning
+      const delay = preferences.feedbackMode === 'immediate' ? 650 : 250;
+      autoAdvanceTimeoutRef.current = setTimeout(() => {
         if (currentIndex === activeQuiz.length - 1) {
           submitQuiz();
         } else {
           setCurrentIndex(c => c + 1);
           setTimeLeft(45);
         }
-      }, 1500); // 1.5s delay to review right/wrong
+      }, delay);
     }
   };
 
@@ -206,9 +232,10 @@ function App() {
           <AnimatePresence mode="wait">
             <motion.div
               key={question.id}
-              initial={{ opacity: 0, x: 50 }}
+              initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -50 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.14, ease: "easeOut" }}
               className="bg-white dark:bg-slate-800 p-8 rounded-[16px] shadow-lg min-h-[400px] flex flex-col relative overflow-hidden transition-colors"
             >
               <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-8">{question.questionText}</h3>
@@ -230,7 +257,7 @@ function App() {
                       onClick={() => handleAnswerSelect(key)}
                       disabled={showFeedback}
                       className={cn(
-                        "w-full text-left p-4 rounded-xl border-2 transition-all flex items-center justify-between font-medium text-lg min-h-[44px] dark:text-slate-200",
+                        "w-full text-left p-4 rounded-xl border-2 transition-colors duration-150 active:scale-[0.99] flex items-center justify-between font-medium text-lg min-h-[44px] dark:text-slate-200",
                         bgClass
                       )}
                     >
@@ -245,7 +272,7 @@ function App() {
                 })}
               </div>
               {showFeedback && question.explanation && (
-                <div className="mt-6 p-4 bg-blue-50 text-blue-800 rounded-xl text-sm">
+                <div className="mt-6 p-4 bg-blue-50 dark:bg-slate-700 text-blue-800 dark:text-blue-300 rounded-xl text-sm">
                   {question.explanation}
                 </div>
               )}
@@ -254,30 +281,30 @@ function App() {
           <div className="flex justify-between mt-8">
             <div className="flex gap-4">
               <button
-                onClick={() => { setCurrentIndex(c => Math.max(0, c - 1)); setTimeLeft(45); }}
+                onClick={() => { clearAutoAdvanceTimer(); setCurrentIndex(c => Math.max(0, c - 1)); setTimeLeft(45); }}
                 disabled={currentIndex === 0}
-                className="px-6 py-3 font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl disabled:opacity-50 transition"
+                className="px-6 py-3 font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl disabled:opacity-50 transition-colors"
               >
                 Previous
               </button>
               <button
-                onClick={submitQuiz}
-                className="px-6 py-3 font-medium text-error hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl transition"
+                onClick={() => { clearAutoAdvanceTimer(); submitQuiz(); }}
+                className="px-6 py-3 font-medium text-error hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl transition-colors"
               >
                 End Test
               </button>
             </div>
             {currentIndex === activeQuiz.length - 1 ? (
               <button
-                onClick={submitQuiz}
-                className="px-8 py-3 font-bold bg-primary text-white hover:bg-primary-hover rounded-xl shadow-md transition"
+                onClick={() => { clearAutoAdvanceTimer(); submitQuiz(); }}
+                className="px-8 py-3 font-bold bg-primary text-white hover:bg-primary-hover rounded-xl shadow-md transition-colors"
               >
                 Submit
               </button>
             ) : (
               <button
-                onClick={() => { setCurrentIndex(c => Math.min(activeQuiz.length - 1, c + 1)); setTimeLeft(45); }}
-                className="px-8 py-3 font-bold bg-primary text-white hover:bg-primary-hover rounded-xl shadow-md transition"
+                onClick={() => { clearAutoAdvanceTimer(); setCurrentIndex(c => Math.min(activeQuiz.length - 1, c + 1)); setTimeLeft(45); }}
+                className="px-8 py-3 font-bold bg-primary text-white hover:bg-primary-hover rounded-xl shadow-md transition-colors"
               >
                 Next
               </button>
@@ -423,17 +450,21 @@ function App() {
             <div className="space-y-4 flex-1">
                <label className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
                 <span className="font-medium text-slate-700 dark:text-slate-200 flex items-center gap-3"><Shuffle size={18} className="text-primary" /> Randomize Order</span>
-                <input type="checkbox" checked={preferences.randomize} onChange={e => setPreferences({ randomize: e.target.checked })} className="w-5 h-5 accent-primary" />
+                <input type="checkbox" checked={preferences.randomize} onChange={e => setPreferences({ randomize: e.target.checked })} className="w-5 h-5 accent-primary cursor-pointer" />
                </label>
                <label className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
                 <span className="font-medium text-slate-700 dark:text-slate-200 flex items-center gap-3"><Clock size={18} className="text-primary" /> Timer (45s limit)</span>
-                <input type="checkbox" checked={preferences.isTimerEnabled} onChange={e => setPreferences({ isTimerEnabled: e.target.checked })} className="w-5 h-5 accent-primary" />
+                <input type="checkbox" checked={preferences.isTimerEnabled} onChange={e => setPreferences({ isTimerEnabled: e.target.checked })} className="w-5 h-5 accent-primary cursor-pointer" />
                </label>
-               <div className="pt-4">
+               <label className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                <span className="font-medium text-slate-700 dark:text-slate-200 flex items-center gap-3"><FastForward size={18} className="text-primary" /> Auto Next Question</span>
+                <input type="checkbox" checked={preferences.isAutoNextEnabled ?? true} onChange={e => setPreferences({ isAutoNextEnabled: e.target.checked })} className="w-5 h-5 accent-primary cursor-pointer" />
+               </label>
+               <div className="pt-2">
                   <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-3">Feedback Mode</p>
                   <div className="flex gap-2">
-                    <button onClick={() => setPreferences({ feedbackMode: 'immediate' })} className={cn("flex-1 py-2 rounded-lg font-medium border text-sm transition", preferences.feedbackMode === 'immediate' ? "bg-slate-800 dark:bg-slate-600 text-white border-slate-800 dark:border-slate-500" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600")}>Immediate</button>
-                    <button onClick={() => setPreferences({ feedbackMode: 'review' })} className={cn("flex-1 py-2 rounded-lg font-medium border text-sm transition", preferences.feedbackMode === 'review' ? "bg-slate-800 dark:bg-slate-600 text-white border-slate-800 dark:border-slate-500" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600")}>Review at End</button>
+                    <button onClick={() => setPreferences({ feedbackMode: 'immediate' })} className={cn("flex-1 py-2 rounded-lg font-medium border text-sm transition-colors duration-150", preferences.feedbackMode === 'immediate' ? "bg-slate-800 dark:bg-slate-600 text-white border-slate-800 dark:border-slate-500" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600")}>Immediate</button>
+                    <button onClick={() => setPreferences({ feedbackMode: 'review' })} className={cn("flex-1 py-2 rounded-lg font-medium border text-sm transition-colors duration-150", preferences.feedbackMode === 'review' ? "bg-slate-800 dark:bg-slate-600 text-white border-slate-800 dark:border-slate-500" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600")}>Review at End</button>
                   </div>
                </div>
             </div>

@@ -18,6 +18,7 @@ export interface QuizState {
     randomize: boolean;
     feedbackMode: 'immediate' | 'review';
     isTimerEnabled: boolean;
+    isAutoNextEnabled: boolean;
     theme: 'light' | 'dark';
   };
   setPreferences: (prefs: Partial<QuizState['preferences']>) => void;

@@ -24,6 +24,7 @@ export const useQuizStore = create<QuizState>()(
         randomize: false,
         feedbackMode: 'immediate',
         isTimerEnabled: true,
+        isAutoNextEnabled: true,
         theme: 'light',
       },
       setPreferences: (prefs) =>
